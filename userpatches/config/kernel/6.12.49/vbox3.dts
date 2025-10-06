@@ -1,0 +1,781 @@
+/*
+ * Device Tree Source for the PCC MIBSTD3 board
+ *
+ * Copyright (C) 2016 Renesas Electronics Corp.
+ *
+ * This file is licensed under the terms of the GNU General Public License
+ * version 2.  This program is licensed "as is" without any warranty of any
+ * kind, whether express or implied.
+ */
+
+#define NO_EXT_DOTCLK
+#define DISPLAY_RESOLUTION 19201080
+/* #define DISPLAY_RESOLUTION 19201200 */
+
+/dts-v1/;
+#include "r8a7796.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "PCC VBOX (ZR3-Based) board";
+	compatible = "renesas,salvator-x", "renesas,r8a7796";
+
+	aliases {
+		serial0 = &scif0;  /* Kernel */
+		serial1 = &hscif1; /* uart_ext (BT on mib3)*/
+		serial2 = &hscif2; /* uart_lin (GPS on mib3) */
+		serial3 = &hscif3; /* uart_ext2 (unused on mib3) */
+		serial4 = &scif2;  /* carcom (controlled by R7 on mib3) */
+		ethernet0 = &avb;
+		mmc0 = &sdhi0;
+		mmc1 = &sdhi2;
+	};
+
+	chosen {
+		bootargs = "ignore_loglevel";
+		stdout-path = "serial0:115200n8";
+	};
+
+	/** Memory Map
+	 *   0x0 4000 0000 -- 0x0 47ff ffff (size: 0x07ff ffff) 128MB reserved for secure area
+	 *
+	 *   0x0 4800 0000 -- 0x0 9fff ffff (size: 0x5800 0000 (1408MB))
+	 *     reserved memory in this area:
+	 *       0x5000 0000 -- 0x50ff ffff DSP               16MB
+	 *       0x5100 0000 -- 0x513f ffff DSP shm log        3MB
+	 *       0x5180 0000 -- 0x537f ffff CR7               32MB
+	 *       0x5380 0000 -- 0x53ff ffff CR7 shared mem     8MB
+	 *                       -> 0x53800000 1MB commgr shared mem
+	 *                       -> 0x53900000 3MB r7 logbuff mem
+	 *       0x5400 0000 -- 0x56ff ffff lossy decompress  48MB
+	 *       0x5700 0000 -- 0x6fff ffff CMA              400MB
+	 *       0x7000 0000 -- 0x8000 0000 Multimedia       256MB
+	 *       0x8000 0000 -- 0x803f ffff DSP shared mem     4MB
+	 *       -> commgr:     0x8000 0000 - 0x8010 0000   1MB
+	 *       -> snd_ent.:   0x8010 0000 - 0x8000 7fff  32KB
+	 *       -> snd_ann1:   0x8010 8000 - 0x8000 ffff  32KB
+	 *       -> snd_ann2:   0x8011 0000 - 0x8001 7fff  32KB
+	 *       -> snd_ann3:   0x8011 8000 - 0x8001 ffff  32KB
+	 *
+	 *   0x4 8000 0000 -- 0x4 dfff ffff (size: 0x6000 0000 (1536MB))
+	 *
+	 *   0x6 0000 0000 -- 0x6 5fff ffff (size: 0x6000 0000 (1536MB))
+	 *
+	 *   0x6 8000 0000 -- 0x6 dfff ffff (size: 0x6000 0000 (1536MB))
+	 *
+	 */
+
+	memory@48000000 {
+		device_type = "memory";
+		/* first 128MB is reserved for secure area. */
+		reg = <0x0 0x48000000 0x0 0x58000000>;
+	};
+
+	memory@480000000 {
+		device_type = "memory";
+		reg = <0x4 0x80000000 0x0 0x60000000>;
+	};
+
+/* only 3gb on vbox board
+	memory@600000000 {
+		device_type = "memory";
+		reg = <0x6 0x00000000 0x0 0x60000000>;
+	};
+
+	memory@680000000 {
+		device_type = "memory";
+		reg = <0x6 0x80000000 0x0 0x60000000>;
+	};
+*/
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* device specific region for Lossy Decompression */
+		lossy_decompress: linux,lossy_decompress {
+			compatible = "shared-dma-pool";
+			reg = <0x00000000 0x54000000 0x0 0x03000000>;
+			no-map;
+		};
+
+		/* global autoconfigured region for contiguous allocations */
+		linux,cma {
+			compatible = "shared-dma-pool";
+			reg = <0x00000000 0x57000000 0x0 0x19000000>;
+			linux,cma-default;
+			reusable;
+		};
+
+		/* device specific region for contiguous allocations */
+		mmp_reserved: linux,multimedia {
+			compatible = "shared-dma-pool";
+			reg = <0x00000000 0x70000000 0x0 0x10000000>;
+			reusable;
+		};
+	};
+
+	du_dotclkin0: du_dotclkin0 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+#if defined (NO_EXT_DOTCLK)
+		status = "disabled";
+		clock-frequency = <0>;
+#else
+		status = "okay";
+#if DISPLAY_RESOLUTION == 19201080
+		clock-frequency = <148500000>;
+#elif DISPLAY_RESOLUTION == 19201200
+		clock-frequency = <154128000>;
+#else
+#error Please specify a supported resolution
+#endif /* of DISPLAY_RESOLUTION */
+#endif /* of NO_EXT_DOTCLK */
+	};
+
+
+	audio_clk: audio_clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = /*<1536000>;/* 2 ch */ /*<3072000>; /* 4 ch */ <6144000>; /* 8 ch */
+	};
+
+	mmngr {
+		compatible = "renesas,mmngr";
+		memory-region = <&mmp_reserved>, <&lossy_decompress>;
+	};
+
+	mmngrbuf {
+		compatible = "renesas,mmngrbuf";
+	};
+
+	reg_1p8v: regulator0 {
+		compatible = "regulator-fixed";
+		regulator-name = "fixed-1.8V";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	reg_3p3v: regulator1 {
+		compatible = "regulator-fixed";
+		regulator-name = "fixed-3.3V";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	vspm_if {
+		compatible = "renesas,vspm_if";
+	};
+
+	can2_osc: can2_osc {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <20000000>;
+		status = "okay";
+	};
+	can3_osc: can3_osc {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <20000000>;
+		status = "okay";
+	};
+	can4_osc: can4_osc {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <20000000>;
+		status = "okay";
+	};
+	can5_osc: can5_osc {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <20000000>;
+		status = "okay";
+	};
+};
+
+&can0 {
+	pinctrl-0 = <&can0_pins>;
+	pinctrl-names = "default";
+	renesas,can-clock-select = <0x1>; /* choose clkp2 aka canfd-fi clock (80 MHz) as input */
+	status = "okay";
+};
+
+&can1 {
+	pinctrl-0 = <&can1_pins>;
+	pinctrl-names = "default";
+	renesas,can-clock-select = <0x1>; /* choose clkp2 aka canfd-fi clock (80 MHz) as input */
+	status = "okay";
+};
+
+&a57_0 {
+	cpu-supply = <&dvfs>;
+};
+
+&usb_extal_clk {
+	clock-frequency = <50000000>;
+};
+
+&ehci0 {
+	clocks = <&usb2_clock_sel>, <&cpg CPG_MOD 702>;
+	status = "okay";
+};
+
+&ehci1 {
+	clocks = <&usb2_clock_sel>, <&cpg CPG_MOD 702>;
+	status = "okay";
+};
+
+&extal_clk {
+	clock-frequency = <25000000>;
+};
+
+&hsusb {
+	dr_mode= "otg";
+	status = "okay";
+};
+
+&i2c_dvfs {
+	status = "okay";
+
+	pmic: pmic@30 {
+		pinctrl-0 = <&irq0_pins>;
+		pinctrl-names = "default";
+
+		compatible = "rohm,bd9571mwv";
+		reg = <0x30>;
+		interrupt-parent = <&intc_ex>;
+		interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		regulators {
+			dvfs: dvfs {
+				regulator-name = "dvfs";
+				regulator-min-microvolt = <750000>;
+				regulator-max-microvolt = <1030000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+		};
+	};
+};
+
+&ohci0 {
+	nocp;
+	status = "okay";
+	clocks = <&usb2_clock_sel>, <&cpg CPG_MOD 702>;
+};
+
+&ohci1 {
+	nocp;
+	status = "okay";
+	clocks = <&usb2_clock_sel>, <&cpg CPG_MOD 702>;
+};
+
+&pciec0 {
+	status = "okay";
+};
+
+&pciec1 {
+	status = "okay";
+};
+
+&pcie_bus_clk {
+	clock-frequency = <100000000>;
+	status = "okay";
+};
+
+&pfc {
+	avb_pins: avb {
+		mux {
+			groups = "avb_link", "avb_mdio", "avb_mii";
+			function = "avb";
+		};
+
+		pins_mdio {
+			groups = "avb_mdio";
+			drive-strength = <24>;
+		};
+
+		pins_mii_tx {
+			pins = "PIN_AVB_TX_CTL", "PIN_AVB_TXC", "PIN_AVB_TD0",
+				"PIN_AVB_TD1", "PIN_AVB_TD2", "PIN_AVB_TD3";
+			drive-strength = <12>;
+		};
+	};
+
+	hscif1_pins: hscif1 {
+		groups = "hscif1_data_a", "hscif1_ctrl_a";
+		function = "hscif1";
+	};
+
+	hscif2_pins: hscif2 {
+		groups = "hscif2_data_a";
+		function = "hscif2";
+	};
+
+	hscif3_pins: hscif3 {
+		groups = "hscif3_data_d";
+		function = "hscif3";
+	};
+
+	// Workaround: Disable msiof*_ss* to be able to control the CSs via GPIOs
+	msiof0_pins: spi0 {
+		//groups = "msiof0_clk", "msiof0_ss1", "msiof0_ss2",
+		//	 "msiof0_rxd", "msiof0_txd";
+		groups = "msiof0_clk", "msiof0_rxd", "msiof0_txd";
+		function = "msiof0";
+	};
+
+	msiof1_pins: spi1 {
+		//groups = "msiof1_clk_d", "msiof1_ss1_d",
+		//	 "msiof1_rxd_d", "msiof1_txd_d";
+		groups = "msiof1_clk_d", "msiof1_rxd_d", "msiof1_txd_d";
+		function = "msiof1";
+	};
+
+	msiof2_pins: spi2 {
+		//groups = "msiof2_clk_a", "msiof2_ss1_a", "msiof2_ss2_a",
+		//	 "msiof2_rxd_a", "msiof2_txd_a";
+		groups = "msiof2_clk_a", "msiof2_rxd_a", "msiof2_txd_a";
+		function = "msiof2";
+	};
+
+	msiof3_pins: spi3 {
+		//groups = "msiof3_clk_b", "msiof3_ss1_b", "msiof3_ss2_b",
+		//	 "msiof3_rxd_b", "msiof3_txd_b";
+		groups = "msiof3_clk_b", "msiof3_rxd_b", "msiof3_txd_b";
+		function = "msiof3";
+	};
+
+	scif0_pins: scif0 {
+		groups = "scif0_data", "scif0_ctrl";
+		function = "scif0";
+	};
+
+	scif2_pins: scif2 {
+		groups = "scif2_data_a";
+		function = "scif2";
+	};
+
+	sdhi0_pins: sd0 {
+		groups = "sdhi0_data4", "sdhi0_ctrl";
+		function = "sdhi0";
+		power-source = <3300>;
+	};
+
+	sdhi2_pins: sd2 {
+		groups = "sdhi2_data8", "sdhi2_ctrl", "sdhi2_ds";
+		function = "sdhi2";
+		power-source = <3300>;
+	};
+
+	sdhi2_pins_uhs: sd2_uhs {
+		groups = "sdhi2_data8", "sdhi2_ctrl", "sdhi2_ds";
+		function = "sdhi2";
+		power-source = <1800>;
+	};
+
+	sound_pins: sound {
+		groups = "ssi01239_ctrl", "ssi0_data", "ssi1_data_a", "ssi2_data_a", "ssi9_data_a",
+			"ssi6_ctrl", "ssi6_data",
+			"ssi78_ctrl", "ssi7_data", "ssi8_data";
+		function = "ssi";
+	};
+
+	sound_clk_pins: sound_clk {
+		groups = "audio_clkout_a";
+		function = "audio_clk";
+	};
+
+	irq0_pins: irq0 {
+		groups = "intc_ex_irq0";
+		function = "intc_ex";
+	};
+
+	can0_pins: can0 {
+		groups = "can0_data_a";
+		function = "can0";
+	};
+
+	can1_pins: can1 {
+		groups = "can1_data";
+		function = "can1";
+	};
+};
+
+/* ttySC0 - kernel, GP5-1,2 */
+&scif0 {
+	pinctrl-0 = <&scif0_pins>;
+	pinctrl-names = "default";
+	/* Please use exclusively to the hscif1 node */
+	uart-has-rtscts;
+	status = "okay";
+};
+
+/* ttySCx - carcom, GP5-10,11 */
+&scif2 {
+	pinctrl-0 = <&scif2_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* ttySCx - uart_ext (BT) GP5-5,6,7,8 */
+&hscif1 {
+	pinctrl-0 = <&hscif1_pins>;
+	pinctrl-names = "default";
+	uart-has-rtscts;
+	status = "okay";
+};
+
+
+/* ttySCx - uart_lin (GPS) */
+&hscif2 {
+	pinctrl-0 = <&hscif2_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* ttySCx - uart_ext2 (was unusued) */
+&hscif3 {
+	pinctrl-0 = <&hscif3_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&sdhi0 {
+	/* used for micro sd slot */
+	pinctrl-0 = <&sdhi0_pins>;
+	pinctrl-names = "default";
+
+	vmmc-supply = <&reg_3p3v>;
+	vqmmc-supply = <&reg_1p8v>;
+	status = "okay";
+};
+
+&sdhi2 {
+	/* used for on-board 8bit eMMC */
+	pinctrl-0 = <&sdhi2_pins>;
+	pinctrl-1 = <&sdhi2_pins_uhs>;
+	pinctrl-names = "default", "state_uhs";
+
+	vmmc-supply = <&reg_3p3v>;
+	vqmmc-supply = <&reg_1p8v>;
+	mmc-hs200-1_8v;
+	/delete-property/ mmc-hs400-1_8v;
+	bus-width = <8>;
+	drive-strength = <1>;
+	non-removable;
+	status = "okay";
+};
+
+&usb2_phy0 {
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&usb2_phy1 {
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&vspb {
+	status = "okay";
+};
+
+&vspi0 {
+	status = "okay";
+};
+
+&rwdt {
+	timeout-sec = <60>;
+	status = "okay";
+};
+
+&usb3_phy0 {
+	status = "okay";
+};
+
+&xhci0 {
+	status = "okay";
+	phy-names = "usb";
+	phys = <&usb3_phy0>;
+};
+
+/* i2c0 used for external stuff (connectors X14 / X20) */
+&i2c0 {
+	clock-frequency = <100000>;
+	status = "okay";
+};
+
+/* i2c4 used for gpio expander */
+&i2c4 {
+	clock-frequency = <100000>;
+	status = "okay";
+	gpio_pca: gpio@74 {
+		compatible = "nxp,pca9539";
+		reg = <0x74>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <16>;
+		interrupt-parent = <&gpio5>;
+		interrupts = <24 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpios = <&gpio5 15 GPIO_ACTIVE_LOW>;
+		vcc-supply = <&reg_3p3v>;
+	};
+};
+
+/* i2c5 used for a2b (ad2428), audio codec (tlv320aic3104) and rtc (ds1339u) */
+&i2c5 {
+	clock-frequency = <100000>;
+	status = "okay";
+
+	codec0: tlv320aic@18 {
+		compatible = "tlv320aic3104";
+		reg = <0x18>;
+		reset-gpios = <&gpio6 26 GPIO_ACTIVE_LOW>;
+	};
+
+	rtc0: ds1339@68 {
+		compatible = "dallas,ds1339";
+		reg = <0x68>;
+		trickle-diode-disable;
+		interrupt-parent = <&gpio5>;
+		interrupts = <0 IRQ_TYPE_EDGE_FALLING>;
+	};
+
+	i2c5@6A {
+		compatible = "adi,ad242x-b00";
+		reg = <0x6A>;
+
+		#sound-dai-cells = <0>;
+		clocks = <&cpg CPG_MOD 1012>; /* ssi3 module clock */
+		clock-names = "mclk";         /* 48kHz sync clock from ssi34_ws */
+		interrupt-parent = <&gpio4>;reset-gpios = <&gpio5 15 GPIO_ACTIVE_LOW>;
+		interrupts = <8 IRQ_TYPE_EDGE_RISING>;
+	};
+};
+
+
+
+/* SPI_CAN23 */
+&msiof0 {
+	pinctrl-0 = <&msiof0_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+	cs-gpios = <0>, <&gpio5 19 GPIO_ACTIVE_LOW>, <&gpio5 21 GPIO_ACTIVE_LOW>;
+	num-cs = <3>;
+	can2: mcp2518fd@1 {
+		compatible = "microchip,mcp2518fd";
+		reg = <1>;
+		spi-max-frequency = <20000000>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <16 IRQ_TYPE_LEVEL_LOW>;
+		clock-names = "can2_clk";
+		clocks = <&can2_osc>;
+	};
+	can3: mcp2518fd@2 {
+		compatible = "microchip,mcp2518fd";
+		reg = <2>;
+		spi-max-frequency = <20000000>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <15 IRQ_TYPE_LEVEL_LOW>;
+		clock-names = "can3_clk";
+		clocks = <&can3_osc>;
+	};
+};
+
+/* SPI_EXT */
+&msiof1 {
+	pinctrl-0 = <&msiof1_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+	cs-gpios = <0>, <&gpio5 16 GPIO_ACTIVE_LOW>;
+	num-cs = <2>;
+	spidev@1 {
+		compatible = "renesas,msiof-r8a7796";
+		reg = <1>;
+		spi-max-frequency = <10000000>;
+	};
+};
+
+/* SPI_CAN45 */
+&msiof2 {
+	pinctrl-0 = <&msiof2_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	cs-gpios = <0>, <&gpio1 6 GPIO_ACTIVE_LOW>, <&gpio1 7 GPIO_ACTIVE_LOW>;
+	num-cs = <3>;
+
+	can4: mcp2518fd@1 {
+		compatible = "microchip,mcp2518fd";
+		reg = <1>;
+		spi-max-frequency = <20000000>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <14 IRQ_TYPE_LEVEL_LOW>;
+		clock-names = "can4_clk";
+		clocks = <&can4_osc>;
+	};
+	can5: mcp2518fd@2 {
+		compatible = "microchip,mcp2518fd";
+		reg = <2>;
+		spi-max-frequency = <20000000>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <1 IRQ_TYPE_LEVEL_LOW>;
+		clock-names = "can5_clk";
+		clocks = <&can5_osc>;
+	};
+};
+
+/* SPI_ETH */
+&msiof3 {
+	pinctrl-0 = <&msiof3_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+	cs-gpios = <0>, <0>, <&gpio1 5 GPIO_ACTIVE_LOW>;
+	num-cs = <3>;
+
+	/* SPI3 CS2-SJA1105 mode 1 */
+	sja1105@2 {
+		compatible = "nxp,sja1105q";
+		reg = <2>;
+		spi-max-frequency = <4000000>;
+		spi-cpha;
+		renesas,dtdl = <200>;
+		renesas,syncdl = <300>;
+		reset-gpios = <&gpio4 7 GPIO_ACTIVE_LOW>;
+		status = "okay";
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+				/* Internal port connected to ethernet port of cpu */
+				label = "cpu";
+				ethernet = <&avb>;
+				phy-mode = "rgmii";
+				rx-internal-delay-ps = <0>;
+				tx-internal-delay-ps = <0>;
+				reg = <0>;
+				sja1105,role-phy;
+
+				/* Connect to the fixed link of the MAC */
+				fixed-link {
+					speed = <1000>;
+					full-duplex;
+				};
+			};
+			port@1 {
+				/* ETH3 (goes to backplane) */
+				label = "swp1";
+				phy-handle = <&eth_phy3>;
+				phy-mode = "rgmii-id";
+				rx-internal-delay-ps = <0>;
+				tx-internal-delay-ps = <0>;
+				reg = <1>;
+				/* Implicit "sja1105,role-mac;" */
+			};
+			port@2 {
+				/* brr phy 1 (goes to backplane) */
+				label = "swp2";
+				phy-handle = <&brr_phy1>;
+				phy-mode = "rgmii-id";
+				rx-internal-delay-ps = <0>;
+				tx-internal-delay-ps = <0>;
+				reg = <2>;
+				/* Implicit "sja1105,role-mac;" */
+			};
+			port@3 {
+				/* brr phy 2 (goes to backplane) */
+				phy-handle = <&brr_phy2>;
+				label = "swp3";
+				phy-mode = "rgmii-id";
+				rx-internal-delay-ps = <0>;
+				tx-internal-delay-ps = <0>;
+				reg = <3>;
+				/* Implicit "sja1105,role-mac;" */
+			};
+			port@4 {
+				/* brr phy 3 (goes to backplane) */
+				label = "swp4";
+				phy-handle = <&brr_phy3>;
+				phy-mode = "rgmii-id";
+				rx-internal-delay-ps = <0>;
+				tx-internal-delay-ps = <0>;
+				reg = <4>;
+				/* Implicit "sja1105,role-mac;" */
+			};
+
+		};
+
+	};
+};
+
+&avb {
+	pinctrl-0 = <&avb_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+	phy-mode = "rgmii-id";
+	/* Provide delay property to activate internal fixed delay! */
+	rx-internal-delay-ps = <1>;
+	tx-internal-delay-ps = <1>;
+
+	fixed-link {
+		speed = <1000>;
+		full-duplex;
+	};
+
+	eth_phy3: ksz9031@0 {
+		//compatible = "microchip,ksz9031";
+		reg = <0>;
+		//interrupt-parent = <&gpio4>;
+		//interrupts = <17 IRQ_TYPE_LEVEL_LOW>;
+		//reset-gpios = <&gpio6 27 GPIO_ACTIVE_LOW>;
+		/* After the de-assertion of reset, wait a minimum of 100 μs before starting programming on the MIIM (MDC/MDIO) interface. + 10% */
+		//reset-deassert-us = <110>;
+
+		// Introduce a Clk skew rate delay to sync the TX and Rx between SOC <-> Switch <-> PHY
+		// TODO: The accurate Clk skew rate delay/adjustment should be measured
+		rxc-skew-ps = <3000>;
+		rxdv-skew-ps = <0>;
+		txc-skew-ps = <3000>;
+		txen-skew-ps = <0>;
+	};
+	brr_phy1: mv88q2xxx@1 {
+		// mv88q2110
+		compatible = "ethernet-phy-id002b.0980";
+		// mv88q2220 (Rev.B#) patched/activated inline by the BL2 (if necessary)
+		//compatible = "ethernet-phy-id002b.0b20";
+		reg = <1>;
+		//interrupt-parent = <&gpio2>;
+		//interrupts = <10 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpios = <&gpio4 13 GPIO_ACTIVE_LOW>;
+	};
+	brr_phy2: mv88q2xxx@2 {
+		// mv88q2110
+		compatible = "ethernet-phy-id002b.0980";
+		// mv88q2220 (Rev.B#) patched/activated inline by the BL2 (if necessary)
+		//compatible = "ethernet-phy-id002b.0b20";
+		reg = <2>;
+		//interrupt-parent = <&gpio2>;
+		//interrupts = <11 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpios = <&gpio4 12 GPIO_ACTIVE_LOW>;
+	};
+	brr_phy3: mv88q2xxx@3 {
+		// mv88q2110
+		compatible = "ethernet-phy-id002b.0980";
+		// mv88q2220 (Rev.B#) patched/activated inline by the BL2 (if necessary)
+		//compatible = "ethernet-phy-id002b.0b20";
+		reg = <3>;
+		//interrupt-parent = <&gpio2>;
+		//interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpios = <&gpio4 11 GPIO_ACTIVE_LOW>;
+	};
+};

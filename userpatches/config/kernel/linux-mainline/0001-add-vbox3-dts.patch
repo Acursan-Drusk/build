@@ -1,0 +1,18 @@
+diff --git a/arch/arm64/boot/dts/renesas/vbox3.dts b/arch/arm64/boot/dts/renesas/vbox3.dts
+new file mode 100644
+index 0000000..abcdef1
+--- /dev/null
++++ b/arch/arm64/boot/dts/renesas/vbox3.dts
+@@ -0,0 +1,50 @@
++ /dts-v1/;
++ / {
++     compatible = "renesas,vbox3";
++     /* Your device tree content here */
++ };
+diff --git a/arch/arm64/boot/dts/Makefile b/arch/arm64/boot/dts/Makefile
+index 1234567..89abcde 100644
+--- a/arch/arm64/boot/dts/Makefile
++++ b/arch/arm64/boot/dts/Makefile
+@@ -20,6 +20,7 @@ dtb-$(CONFIG_RENESAS) += \
++       renesas/vbox3.dtb
+

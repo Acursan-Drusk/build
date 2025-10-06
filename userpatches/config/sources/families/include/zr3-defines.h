@@ -1,0 +1,31 @@
+#ifndef ZR3_DEFINES_H_INCLUDED
+#define ZR3_DEFINES_H_INCLUDED
+
+/* ADSP Shared memory */
+#define ADSP_SHM_BASE      0x80000000
+#define ADSP_SHM_LEN       0x00400000
+
+#define ADSP_COMMGR_BASE   ADSP_SHM_BASE
+#define ADSP_COMMGR_LEN    0x00100000
+
+
+/* ADSP Soundcard Memory Definitions */
+#define SND_ADSP_ENT_BASE  0x80100000
+#define SND_ADSP_ANN1_BASE 0x80108000
+#define SND_ADSP_ANN2_BASE 0x80110000
+#define SND_ADSP_ANN3_BASE 0x80118000
+#define SND_ADSP_ANN4_BASE 0x80120000
+#define SND_ADSP_ANN5_BASE 0x80128000
+#define SND_ADSP_REF_BASE  0x80130000
+#define SND_ADSP_CENT_BASE 0x80138000
+
+/* length of each Shared memory segment */
+#define SND_ADSP_SEG_LEN  0x8000
+
+#define ADSP_MEM_BASE      0x50000000
+#define ADSP_MEM_LEN       0x01000000
+
+#define ADSP_LOGBUF_BASE   0x51000000
+#define ADSP_LOGBUF_LEN    0x00300000
+
+#endif /* ZR3_DEFINES_H_INCLUDED */
